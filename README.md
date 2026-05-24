@@ -1,15 +1,17 @@
 # xml-diff-kit
 
-Language: [English](https://github.com/vndmea/xml-diff-kit/blob/master/README.md) | [简体中文](https://github.com/vndmea/xml-diff-kit/blob/master/README.zh-CN.md)
+English | [简体中文](https://github.com/vndmea/xml-diff-kit/blob/master/README.zh-CN.md)
 
 A TypeScript toolkit for parsing, normalizing, diffing, patching, and formatting XML document changes.
 
 `xml-diff-kit` is designed for applications that need machine-readable XML differences rather than visual line-based diffs, such as structured editors, review workflows, change tracking, and patch application.
 
+It works in both Node.js and modern browsers. In the browser, it can be used directly with bundlers such as Vite, Webpack, Rollup, or esbuild.
+
 ## Install
 
 ```bash
-pnpm add xml-diff-kit
+npm install xml-diff-kit
 ```
 
 ## Usage
@@ -92,6 +94,18 @@ formatDiff(ops, options)
 diffText(oldValue, newValue)
 ```
 
+## Browser usage
+
+`xml-diff-kit` can run in modern browsers through standard ESM imports:
+
+```ts
+import { diffXml } from 'xml-diff-kit';
+
+const ops = diffXml('<root><a>old</a></root>', '<root><a>new</a></root>');
+```
+
+The package exports ESM and CJS builds, and the public API does not require Node.js-only runtime APIs.
+
 ## Diff operations
 
 The first version focuses on structured XML changes:
@@ -129,12 +143,12 @@ interface XmlDiffOptions {
 This package is prepared for npm publishing with dual ESM/CJS output and generated TypeScript declarations.
 
 ```bash
-pnpm install
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm publish --access public
+npm install
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm publish --access public
 ```
 
 The repository also includes a GitHub Actions publish workflow. Configure `NPM_TOKEN` in repository secrets before using it.
@@ -142,11 +156,11 @@ The repository also includes a GitHub Actions publish workflow. Configure `NPM_T
 ## Development
 
 ```bash
-pnpm install
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
+npm install
+npm run lint
+npm run typecheck
+npm test
+npm run build
 ```
 
 ## License
