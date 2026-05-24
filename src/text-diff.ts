@@ -16,64 +16,117 @@ export function diffText(
 
   const oldChars = Array.from(oldValue);
   const newChars = Array.from(newValue);
-
-  let prefixLength = 0;
-  while (
-    prefixLength < oldChars.length &&
-    prefixLength < newChars.length &&
-    oldChars[prefixLength] === newChars[prefixLength]
-  ) {
-    prefixLength += 1;
-  }
-
-  let suffixLength = 0;
-  while (
-    suffixLength < oldChars.length - prefixLength &&
-    suffixLength < newChars.length - prefixLength &&
-    oldChars[oldChars.length - 1 - suffixLength] === newChars[newChars.length - 1 - suffixLength]
-  ) {
-    suffixLength += 1;
-  }
-
-  const oldMiddle = oldChars.slice(prefixLength, oldChars.length - suffixLength).join('');
-  const newMiddle = newChars.slice(prefixLength, newChars.length - suffixLength).join('');
-  const prefix = oldChars.slice(0, prefixLength).join('');
-  const suffix = oldChars.slice(oldChars.length - suffixLength).join('');
-
-  const changes: TextChange[] = [];
-  const segments: TextDiffSegment[] = [];
-
-  if (prefix) segments.push({ type: 'equal', text: prefix });
-
-  if (oldMiddle && newMiddle) {
-    changes.push({
-      op: 'replaceTextRange',
-      offset: prefixLength,
-      oldText: oldMiddle,
-      newText: newMiddle,
-    });
-    segments.push({ type: 'delete', text: oldMiddle });
-    segments.push({ type: 'insert', text: newMiddle });
-  } else if (oldMiddle) {
-    changes.push({
-      op: 'deleteText',
-      offset: prefixLength,
-      oldText: oldMiddle,
-    });
-    segments.push({ type: 'delete', text: oldMiddle });
-  } else if (newMiddle) {
-    changes.push({
-      op: 'insertText',
-      offset: prefixLength,
-      text: newMiddle,
-    });
-    segments.push({ type: 'insert', text: newMiddle });
-  }
-
-  if (suffix) segments.push({ type: 'equal', text: suffix });
+  const segments = buildDiffSegments(oldChars, newChars);
 
   return {
-    changes,
+    changes: segmentsToChanges(segments),
     segments,
   };
+}
+
+function buildDiffSegments(oldChars: string[], newChars: string[]): TextDiffSegment[] {
+  const rows = oldChars.length + 1;
+  const cols = newChars.length + 1;
+  const dp: number[][] = Array.from({ length: rows }, () => Array.from({ length: cols }, () => 0));
+
+  for (let oldIndex = oldChars.length - 1; oldIndex >= 0; oldIndex -= 1) {
+    for (let newIndex = newChars.length - 1; newIndex >= 0; newIndex -= 1) {
+      if (oldChars[oldIndex] === newChars[newIndex]) {
+        dp[oldIndex]![newIndex] = dp[oldIndex + 1]![newIndex + 1]! + 1;
+      } else {
+        dp[oldIndex]![newIndex] = Math.max(dp[oldIndex + 1]![newIndex]!, dp[oldIndex]![newIndex + 1]!);
+      }
+    }
+  }
+
+  const segments: TextDiffSegment[] = [];
+  let oldIndex = 0;
+  let newIndex = 0;
+
+  while (oldIndex < oldChars.length && newIndex < newChars.length) {
+    if (oldChars[oldIndex] === newChars[newIndex]) {
+      pushSegment(segments, { type: 'equal', text: oldChars[oldIndex]! });
+      oldIndex += 1;
+      newIndex += 1;
+    } else if (dp[oldIndex + 1]![newIndex]! >= dp[oldIndex]![newIndex + 1]!) {
+      pushSegment(segments, { type: 'delete', text: oldChars[oldIndex]! });
+      oldIndex += 1;
+    } else {
+      pushSegment(segments, { type: 'insert', text: newChars[newIndex]! });
+      newIndex += 1;
+    }
+  }
+
+  while (oldIndex < oldChars.length) {
+    pushSegment(segments, { type: 'delete', text: oldChars[oldIndex]! });
+    oldIndex += 1;
+  }
+
+  while (newIndex < newChars.length) {
+    pushSegment(segments, { type: 'insert', text: newChars[newIndex]! });
+    newIndex += 1;
+  }
+
+  return segments;
+}
+
+function segmentsToChanges(segments: TextDiffSegment[]): TextChange[] {
+  const changes: TextChange[] = [];
+  let offset = 0;
+  let index = 0;
+
+  while (index < segments.length) {
+    const segment = segments[index]!;
+
+    if (segment.type === 'equal') {
+      offset += Array.from(segment.text).length;
+      index += 1;
+      continue;
+    }
+
+    if (segment.type === 'delete') {
+      const next = segments[index + 1];
+
+      if (next?.type === 'insert') {
+        changes.push({
+          op: 'replaceTextRange',
+          offset,
+          oldText: segment.text,
+          newText: next.text,
+        });
+        offset += Array.from(segment.text).length;
+        index += 2;
+        continue;
+      }
+
+      changes.push({
+        op: 'deleteText',
+        offset,
+        oldText: segment.text,
+      });
+      offset += Array.from(segment.text).length;
+      index += 1;
+      continue;
+    }
+
+    changes.push({
+      op: 'insertText',
+      offset,
+      text: segment.text,
+    });
+    index += 1;
+  }
+
+  return changes;
+}
+
+function pushSegment(segments: TextDiffSegment[], next: TextDiffSegment): void {
+  const previous = segments.at(-1);
+
+  if (previous?.type === next.type) {
+    previous.text += next.text;
+    return;
+  }
+
+  segments.push({ ...next });
 }
