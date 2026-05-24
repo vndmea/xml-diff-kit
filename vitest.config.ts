@@ -1,5 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
+const minCoverage = 95;
+
 export default defineConfig({
   test: {
     globals: false,
@@ -10,6 +12,12 @@ export default defineConfig({
       reporter: ['text', 'html', 'lcov'],
       include: ['src/**/*.ts'],
       exclude: ['src/index.ts', 'src/types.ts'],
+      thresholds: {
+        statements: minCoverage,
+        branches: minCoverage,
+        functions: minCoverage,
+        lines: minCoverage,
+      },
     },
   },
 });
