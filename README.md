@@ -2,11 +2,11 @@
 
 English | [简体中文](https://github.com/vndmea/xml-diff-kit/blob/master/README.zh-CN.md)
 
-A TypeScript toolkit for parsing, normalizing, diffing, patching, and formatting XML document changes.
+A TypeScript toolkit for parsing, normalizing, diffing, patching, serializing, and formatting XML document changes.
 
-`xml-diff-kit` is designed for applications that need machine-readable XML differences rather than visual line-based diffs, such as structured editors, review workflows, change tracking, and patch application.
+`xml-diff-kit` is designed for applications that need structured, machine-readable XML differences rather than visual line-based diffs. It is suitable for structured editors, review workflows, change tracking, patch application, XML document comparison, and browser-based XML tooling.
 
-It works in both Node.js and modern browsers. In the browser, it can be used directly with bundlers such as Vite, Webpack, Rollup, or esbuild.
+It works in both Node.js and modern browsers. The package exports ESM and CJS builds, and the public API does not require Node.js-only runtime APIs.
 
 ## Install
 
@@ -16,21 +16,15 @@ npm install xml-diff-kit
 
 ## Usage
 
+### `diffXml`
+
+Compare two XML documents and get structured diff operations.
+
 ```ts
-import { diffXml, patchXml, formatDiff } from 'xml-diff-kit';
+import { diffXml } from 'xml-diff-kit';
 
-const oldXml = `
-<procedure>
-  <step id="s1">Remove the panel.</step>
-</procedure>
-`;
-
-const newXml = `
-<procedure>
-  <step id="s1">Remove the access panel.</step>
-  <step id="s2">Inspect the connector.</step>
-</procedure>
-`;
+const oldXml = '<procedure><step id="s1">Remove the panel.</step></procedure>';
+const newXml = '<procedure><step id="s1">Remove the access panel.</step><step id="s2">Inspect.</step></procedure>';
 
 const ops = diffXml(oldXml, newXml, {
   ignoreWhitespaceText: true,
@@ -38,13 +32,6 @@ const ops = diffXml(oldXml, newXml, {
 });
 
 console.log(ops);
-console.log(formatDiff(ops, { format: 'markdown' }));
-
-const patchedXml = patchXml(oldXml, ops, {
-  pretty: true,
-});
-
-console.log(patchedXml);
 ```
 
 Example output:
@@ -56,13 +43,7 @@ Example output:
     path: '/procedure[0]/step[@id="s1"][0]/text()[0]',
     oldValue: 'Remove the panel.',
     newValue: 'Remove the access panel.',
-    changes: [
-      {
-        op: 'insertText',
-        offset: 11,
-        text: 'access '
-      }
-    ],
+    changes: [{ op: 'insertText', offset: 11, text: 'access ' }],
     segments: [
       { type: 'equal', text: 'Remove the ' },
       { type: 'insert', text: 'access ' },
@@ -75,40 +56,80 @@ Example output:
     value: {
       type: 'element',
       name: 'step',
+      namespaceURI: null,
       attrs: { id: 's2' },
-      children: [{ type: 'text', text: 'Inspect the connector.' }]
+      children: [{ type: 'text', text: 'Inspect.' }]
     }
   }
 ]
 ```
 
-## Public API
+### `patchXml`
+
+Apply diff operations to an XML string or parsed XML node.
 
 ```ts
-parseXml(xml)
-normalizeXml(node, options)
-diffXml(oldXmlOrNode, newXmlOrNode, options)
-patchXml(xmlOrNode, ops, options)
-serializeXml(node, options)
-formatDiff(ops, options)
-diffText(oldValue, newValue)
+import { diffXml, patchXml } from 'xml-diff-kit';
+
+const ops = diffXml(oldXml, newXml, { keyAttrs: ['id'] });
+const patchedXml = patchXml(oldXml, ops);
+
+console.log(patchedXml);
 ```
 
-## Browser usage
+### `formatDiff`
 
-`xml-diff-kit` can run in modern browsers through standard ESM imports:
+Format structured diff operations as summary objects or a Markdown report.
 
 ```ts
-import { diffXml } from 'xml-diff-kit';
+import { diffXml, formatDiff } from 'xml-diff-kit';
 
-const ops = diffXml('<root><a>old</a></root>', '<root><a>new</a></root>');
+const ops = diffXml(oldXml, newXml, { keyAttrs: ['id'] });
+
+const summary = formatDiff(ops);
+const markdown = formatDiff(ops, { format: 'markdown' });
 ```
 
-The package exports ESM and CJS builds, and the public API does not require Node.js-only runtime APIs.
+### `parseXml` and `serializeXml`
+
+Parse XML into the internal AST, then serialize it back to XML.
+
+```ts
+import { parseXml, serializeXml } from 'xml-diff-kit';
+
+const doc = parseXml('<root><item id="1">Hello</item></root>');
+const xml = serializeXml(doc, { pretty: true });
+```
+
+### `normalizeXml`
+
+Normalize an XML AST before diffing or custom processing.
+
+```ts
+import { normalizeXml, parseXml } from 'xml-diff-kit';
+
+const doc = parseXml('<root b="2" a="1">  <item> value </item>  </root>');
+
+const normalized = normalizeXml(doc, {
+  ignoreWhitespaceText: true,
+  trimText: true,
+  sortAttributes: true,
+});
+```
+
+### `diffText`
+
+Diff two text values directly. This is the same text diff used inside `replaceText` operations.
+
+```ts
+import { diffText } from 'xml-diff-kit';
+
+const textDiff = diffText('Remove the panel.', 'Remove the access panel.');
+```
 
 ## Diff operations
 
-The first version focuses on structured XML changes:
+The current version focuses on structured XML changes:
 
 - `addNode`
 - `removeNode`
@@ -138,20 +159,15 @@ interface XmlDiffOptions {
 
 `detectMoves` is opt-in. When enabled, keyed sibling reorder changes are reported as `moveNode` operations. It is disabled by default so patching remains conservative for the first version.
 
-## Release
+## Paths
 
-This package is prepared for npm publishing with dual ESM/CJS output and generated TypeScript declarations.
+Diff operations use absolute paths from the XML root node:
 
-```bash
-npm install
-npm run lint
-npm run typecheck
-npm test
-npm run build
-npm publish --access public
+```txt
+/procedure[0]/step[@id="s1"][0]/text()[0]
 ```
 
-The repository also includes a GitHub Actions publish workflow. Configure `NPM_TOKEN` in repository secrets before using it.
+The numeric index is the executable addressing part used by patching. Key hints such as `[@id="s1"]` improve readability and keyed matching.
 
 ## Development
 
@@ -160,7 +176,19 @@ npm install
 npm run lint
 npm run typecheck
 npm test
+npm run coverage
 npm run build
+```
+
+## Release
+
+```bash
+npm install
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm publish --access public
 ```
 
 ## License
