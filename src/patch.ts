@@ -4,6 +4,12 @@ import { serializeXml } from './serialize.js';
 import type { SerializeOptions, XmlDiffOp, XmlNode } from './types.js';
 import { cloneXmlNode } from './utils.js';
 
+type PatchTarget = {
+  node: XmlNode;
+  parent?: Extract<XmlNode, { type: 'element' }>;
+  index: number;
+};
+
 export function patchXml(input: string, ops: XmlDiffOp[], options?: SerializeOptions): string;
 export function patchXml(input: XmlNode, ops: XmlDiffOp[], options?: SerializeOptions): XmlNode;
 export function patchXml(
@@ -103,14 +109,7 @@ function moveNode(root: XmlNode, fromPath: string, toPath: string): void {
   targetParent.children.splice(targetIndex, 0, removed);
 }
 
-function getTarget(
-  root: XmlNode,
-  path: string,
-): {
-  node: XmlNode;
-  parent?: Extract<XmlNode, { type: 'element' }>;
-  index: number;
-} {
+function getTarget(root: XmlNode, path: string): PatchTarget {
   const indexes = getPathIndexes(path);
 
   if (indexes.length === 0) {
@@ -137,11 +136,16 @@ function getTarget(
     current = child;
   }
 
-  return {
+  const result: PatchTarget = {
     node: current,
-    parent,
     index: currentIndex,
   };
+
+  if (parent) {
+    result.parent = parent;
+  }
+
+  return result;
 }
 
 function getPathIndexes(path: string): number[] {
