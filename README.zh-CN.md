@@ -71,20 +71,30 @@ console.log(ops);
 
 把结构化 diff operations 应用回 XML 字符串或已解析的 XML 节点。
 
-`patchXml` 适合在拿到 diff 结果后，把旧 XML 转换成更新后的 XML。常见流程是：
+当你已经有一组 `XmlDiffOp[]`，并希望把它们应用到 XML 文档上时，可以使用 `patchXml`。当输入是 XML 字符串时，`patchXml` 返回字符串。当输入是 `XmlNode` 时，它返回补丁后的 `XmlNode`。
 
-```txt
-diffXml(oldXml, newXml) -> XmlDiffOp[]
-patchXml(oldXml, ops) -> patched XML
-```
-
-当输入是 XML 字符串时，`patchXml` 返回字符串。当输入是 `XmlNode` 时，它返回补丁后的 `XmlNode`。
+#### 新增节点
 
 ```ts
-import { diffXml, patchXml } from 'xml-diff-kit';
+import { patchXml, type XmlDiffOp } from 'xml-diff-kit';
 
-const ops = diffXml(oldXml, newXml, { keyAttrs: ['id'] });
-const patchedXml = patchXml(oldXml, ops);
+const xml = '<root><a/></root>';
+
+const ops: XmlDiffOp[] = [
+  {
+    op: 'addNode',
+    path: '/root[0]/b[1]',
+    value: {
+      type: 'element',
+      name: 'b',
+      namespaceURI: null,
+      attrs: {},
+      children: []
+    }
+  }
+];
+
+const patchedXml = patchXml(xml, ops);
 
 console.log(patchedXml);
 ```
@@ -92,33 +102,80 @@ console.log(patchedXml);
 输出：
 
 ```xml
-<procedure><step id="s1">Remove the access panel.</step><step id="s2">Inspect.</step></procedure>
+<root><a/><b/></root>
 ```
 
-也可以在 patch XML 字符串时输出格式化后的 XML：
+#### 更新属性
 
 ```ts
-const prettyXml = patchXml(oldXml, ops, { pretty: true });
+import { patchXml, type XmlDiffOp } from 'xml-diff-kit';
 
-console.log(prettyXml);
+const xml = '<root status="draft"/>';
+
+const ops: XmlDiffOp[] = [
+  {
+    op: 'updateAttr',
+    path: '/root[0]',
+    name: 'status',
+    oldValue: 'draft',
+    newValue: 'released'
+  }
+];
+
+const patchedXml = patchXml(xml, ops);
+
+console.log(patchedXml);
 ```
 
 输出：
 
 ```xml
-<procedure>
-  <step id="s1">Remove the access panel.</step>
-  <step id="s2">Inspect.</step>
-</procedure>
+<root status="released"/>
+```
+
+#### 替换文本
+
+```ts
+import { patchXml, type XmlDiffOp } from 'xml-diff-kit';
+
+const xml = '<root>old text</root>';
+
+const ops: XmlDiffOp[] = [
+  {
+    op: 'replaceText',
+    path: '/root[0]/text()[0]',
+    oldValue: 'old text',
+    newValue: 'new text',
+    changes: [
+      {
+        op: 'replaceTextRange',
+        offset: 0,
+        oldText: 'old',
+        newText: 'new'
+      }
+    ],
+    segments: [
+      { type: 'delete', text: 'old' },
+      { type: 'insert', text: 'new' },
+      { type: 'equal', text: ' text' }
+    ]
+  }
+];
+
+const patchedXml = patchXml(xml, ops);
+
+console.log(patchedXml);
+```
+
+输出：
+
+```xml
+<root>new text</root>
 ```
 
 `patchXml` 根据路径应用变更。路径中的数字索引是实际用于定位节点的部分。类似 `[@id="s1"]` 的 key 提示用于提升可读性，并帮助 `diffXml` 对齐节点，但 patch 时仍然依赖数字索引。
 
-支持的 patch 操作包括：
-
-- 新增、删除、替换、移动节点
-- 新增、更新、删除属性
-- 替换文本节点内容
+支持的 patch 操作包括新增、删除、替换、移动节点；新增、更新、删除属性；以及替换文本节点内容。
 
 ### `formatDiff`
 
