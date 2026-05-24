@@ -79,10 +79,27 @@ describe('xml-diff-kit', () => {
     expect(patchXml(oldXml, ops)).toBe(oldXml);
   });
 
-  it('formats diff output as markdown', () => {
-    const ops = diffXml('<root a="1"/>', '<root a="2"/>');
+  it('formats diff output as markdown report', () => {
+    const ops = diffXml(
+      '<procedure status="draft"><step id="s1">Remove the panel.</step></procedure>',
+      '<procedure status="released"><step id="s1">Remove the access panel.</step></procedure>',
+      {
+        keyAttrs: ['id'],
+      },
+    );
     const markdown = formatDiff(ops, { format: 'markdown' });
 
-    expect(markdown).toContain('Updated attribute a');
+    expect(markdown).toContain('# XML Diff');
+    expect(markdown).toContain('Total changes: 2');
+    expect(markdown).toContain('## 1. Updated attribute');
+    expect(markdown).toContain('- Name: `status`');
+    expect(markdown).toContain('- Before: `draft`');
+    expect(markdown).toContain('- After: `released`');
+    expect(markdown).toContain('## 2. Changed text');
+    expect(markdown).toContain('**Before**');
+    expect(markdown).toContain('Remove the panel.');
+    expect(markdown).toContain('Remove the access panel.');
+    expect(markdown).toContain('**Text segments**');
+    expect(markdown).toContain('- insert: `access `');
   });
 });
