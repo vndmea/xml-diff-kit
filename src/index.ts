@@ -1,3 +1,11 @@
+/**
+ * Public entrypoint for xml-diff-kit.
+ *
+ * This file intentionally re-exports a small, stable API surface so consumers
+ * can import everything from `xml-diff-kit` without depending on internal file
+ * structure. Internal modules may be reorganized in future versions without
+ * changing these exports.
+ */
 export { diffXml } from './diff.js';
 export { formatDiff } from './format.js';
 export { normalizeXml } from './normalize.js';
