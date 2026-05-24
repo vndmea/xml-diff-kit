@@ -103,7 +103,7 @@ describe('coverage focused branches', () => {
 
   it('throws when addNode path has no numeric target index', () => {
     expect(() =>
-      patchXml('<root/>', [{ op: 'addNode', path: '/root[0]/item', value: parseXml('<item/>') }]),
+      patchXml('<root/>', [{ op: 'addNode', path: 'item', value: parseXml('<item/>') }]),
     ).toThrow('Path has no numeric index');
   });
 
