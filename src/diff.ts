@@ -4,6 +4,17 @@ import { diffText } from './text-diff.js';
 import type { XmlDiffOp, XmlDiffOptions, XmlNode } from './types.js';
 import { formatPathSegment, getNodeKey } from './utils.js';
 
+/**
+ * Compare two XML inputs and return structured, machine-readable operations.
+ *
+ * Inputs can be raw XML strings or pre-parsed `XmlNode` ASTs. Both sides are
+ * normalized before comparison, so options such as `ignoreWhitespaceText` and
+ * `ignoreComments` are applied consistently to old and new documents.
+ *
+ * The returned operations use absolute paths from the XML root node. The path
+ * format is intentionally deterministic and readable, for example:
+ * `/procedure[0]/step[@id="s1"][0]/text()[0]`.
+ */
 export function diffXml(
   oldInput: string | XmlNode,
   newInput: string | XmlNode,
@@ -17,6 +28,7 @@ export function diffXml(
   return ops;
 }
 
+/** Compare two nodes that are expected to represent the same path. */
 function diffNode(
   oldNode: XmlNode,
   newNode: XmlNode,
@@ -53,6 +65,8 @@ function diffNode(
 
   if (oldNode.type !== 'element' || newNode.type !== 'element') return;
 
+  // Different element names or namespace URIs are treated as whole-node replacement.
+  // This keeps the first version simple and avoids ambiguous rename semantics.
   if (oldNode.name !== newNode.name || oldNode.namespaceURI !== newNode.namespaceURI) {
     ops.push({ op: 'replaceNode', path, oldValue: oldNode, newValue: newNode });
     return;
@@ -62,6 +76,7 @@ function diffNode(
   diffChildren(oldNode.children, newNode.children, path, options, ops);
 }
 
+/** Compare attribute maps on the same element path. */
 function diffAttributes(
   oldAttrs: Record<string, string>,
   newAttrs: Record<string, string>,
@@ -85,6 +100,14 @@ function diffAttributes(
   }
 }
 
+/**
+ * Compare child nodes.
+ *
+ * If `keyAttrs` is provided and at least one sibling has a key, keyed children
+ * are aligned by key first. This reduces false positives for document models
+ * where stable IDs are more meaningful than sibling indexes. Unkeyed children
+ * still fall back to index-based comparison.
+ */
 function diffChildren(
   oldChildren: XmlNode[],
   newChildren: XmlNode[],
@@ -118,6 +141,8 @@ function diffChildren(
         } else {
           const newPath = `${parentPath}/${formatPathSegment(next.node, next.index, keyAttrs)}`;
 
+          // Move detection is opt-in because move application changes sibling order.
+          // Consumers that only need semantic comparison can keep the conservative default.
           if (options.detectMoves === true && index !== next.index) {
             ops.push({
               op: 'moveNode',
@@ -161,6 +186,7 @@ function diffChildren(
   );
 }
 
+/** Compare child arrays by their current sibling indexes. */
 function diffChildrenByIndex(
   oldChildren: Array<{ node: XmlNode; index: number }>,
   newChildren: Array<{ node: XmlNode; index: number }>,
