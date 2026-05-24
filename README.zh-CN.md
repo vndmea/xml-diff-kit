@@ -16,6 +16,13 @@ npm install xml-diff-kit
 
 ## 使用方式
 
+下面大部分示例共用同一组 XML：
+
+```ts
+const oldXml = '<procedure><step id="s1">Remove the panel.</step></procedure>';
+const newXml = '<procedure><step id="s1">Remove the access panel.</step><step id="s2">Inspect.</step></procedure>';
+```
+
 ### `diffXml`
 
 比较两个 XML 文档，输出结构化 diff operations。
@@ -23,18 +30,14 @@ npm install xml-diff-kit
 ```ts
 import { diffXml } from 'xml-diff-kit';
 
-const oldXml = '<procedure><step id="s1">Remove the panel.</step></procedure>';
-const newXml = '<procedure><step id="s1">Remove the access panel.</step><step id="s2">Inspect.</step></procedure>';
-
 const ops = diffXml(oldXml, newXml, {
-  ignoreWhitespaceText: true,
   keyAttrs: ['id'],
 });
 
 console.log(ops);
 ```
 
-示例输出：
+输出：
 
 ```ts
 [
@@ -77,6 +80,12 @@ const patchedXml = patchXml(oldXml, ops);
 console.log(patchedXml);
 ```
 
+输出：
+
+```xml
+<procedure><step id="s1">Remove the access panel.</step><step id="s2">Inspect.</step></procedure>
+```
+
 ### `formatDiff`
 
 把结构化 diff operations 格式化为摘要对象，或者 Markdown 报告。
@@ -85,9 +94,81 @@ console.log(patchedXml);
 import { diffXml, formatDiff } from 'xml-diff-kit';
 
 const ops = diffXml(oldXml, newXml, { keyAttrs: ['id'] });
-
 const summary = formatDiff(ops);
+
+console.log(summary);
+```
+
+输出：
+
+```ts
+[
+  {
+    type: 'textChanged',
+    path: '/procedure[0]/step[@id="s1"][0]/text()[0]',
+    message: 'Changed text at /procedure[0]/step[@id="s1"][0]/text()[0]',
+    before: 'Remove the panel.',
+    after: 'Remove the access panel.'
+  },
+  {
+    type: 'nodeAdded',
+    path: '/procedure[0]/step[@id="s2"][1]',
+    message: 'Added node at /procedure[0]/step[@id="s2"][1]',
+    after: {
+      type: 'element',
+      name: 'step',
+      namespaceURI: null,
+      attrs: { id: 's2' },
+      children: [{ type: 'text', text: 'Inspect.' }]
+    }
+  }
+]
+```
+
+Markdown 输出：
+
+```ts
 const markdown = formatDiff(ops, { format: 'markdown' });
+
+console.log(markdown);
+```
+
+输出：
+
+```md
+# XML Diff
+
+Total changes: 2
+
+## 1. Changed text
+
+- Path: `/procedure[0]/step[@id="s1"][0]/text()[0]`
+
+**Before**
+
+```text
+Remove the panel.
+```
+
+**After**
+
+```text
+Remove the access panel.
+```
+
+**Text segments**
+
+- equal: `Remove the `
+- insert: `access `
+- equal: `panel.`
+
+## 2. Added node
+
+- Path: `/procedure[0]/step[@id="s2"][1]`
+
+```xml
+<step id="s2">Inspect.</step>
+```
 ```
 
 ### `parseXml` 和 `serializeXml`
@@ -97,8 +178,19 @@ const markdown = formatDiff(ops, { format: 'markdown' });
 ```ts
 import { parseXml, serializeXml } from 'xml-diff-kit';
 
-const doc = parseXml('<root><item id="1">Hello</item></root>');
+const doc = parseXml('<root><item id="1">Hello</item><item id="2">World</item></root>');
 const xml = serializeXml(doc, { pretty: true });
+
+console.log(xml);
+```
+
+输出：
+
+```xml
+<root>
+  <item id="1">Hello</item>
+  <item id="2">World</item>
+</root>
 ```
 
 ### `normalizeXml`
@@ -115,6 +207,28 @@ const normalized = normalizeXml(doc, {
   trimText: true,
   sortAttributes: true,
 });
+
+console.log(normalized);
+```
+
+输出：
+
+```ts
+{
+  type: 'element',
+  name: 'root',
+  namespaceURI: null,
+  attrs: { a: '1', b: '2' },
+  children: [
+    {
+      type: 'element',
+      name: 'item',
+      namespaceURI: null,
+      attrs: {},
+      children: [{ type: 'text', text: 'value' }]
+    }
+  ]
+}
 ```
 
 ### `diffText`
@@ -125,6 +239,21 @@ const normalized = normalizeXml(doc, {
 import { diffText } from 'xml-diff-kit';
 
 const textDiff = diffText('Remove the panel.', 'Remove the access panel.');
+
+console.log(textDiff);
+```
+
+输出：
+
+```ts
+{
+  changes: [{ op: 'insertText', offset: 11, text: 'access ' }],
+  segments: [
+    { type: 'equal', text: 'Remove the ' },
+    { type: 'insert', text: 'access ' },
+    { type: 'equal', text: 'panel.' }
+  ]
+}
 ```
 
 ## Diff 操作类型
