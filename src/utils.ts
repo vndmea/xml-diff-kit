@@ -43,7 +43,8 @@ export function formatPathSegment(node: XmlNode, index: number, keyAttrs: string
   if (node.type === 'comment') return `comment()[${index}]`;
 
   const keyAttr = keyAttrs.find((attr) => node.attrs[attr] !== undefined);
-  const keyPart = keyAttr ? `[@${keyAttr}="${node.attrs[keyAttr]}"]` : '';
+  const keyValue = keyAttr ? node.attrs[keyAttr] : undefined;
+  const keyPart = keyAttr && keyValue !== undefined ? `[@${keyAttr}="${keyValue}"]` : '';
 
   return `${node.name}${keyPart}[${index}]`;
 }
