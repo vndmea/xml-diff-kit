@@ -69,7 +69,16 @@ console.log(ops);
 
 ### `patchXml`
 
-把 diff operations 应用到 XML 字符串或已解析的 XML 节点上。
+把结构化 diff operations 应用回 XML 字符串或已解析的 XML 节点。
+
+`patchXml` 适合在拿到 diff 结果后，把旧 XML 转换成更新后的 XML。常见流程是：
+
+```txt
+diffXml(oldXml, newXml) -> XmlDiffOp[]
+patchXml(oldXml, ops) -> patched XML
+```
+
+当输入是 XML 字符串时，`patchXml` 返回字符串。当输入是 `XmlNode` 时，它返回补丁后的 `XmlNode`。
 
 ```ts
 import { diffXml, patchXml } from 'xml-diff-kit';
@@ -85,6 +94,31 @@ console.log(patchedXml);
 ```xml
 <procedure><step id="s1">Remove the access panel.</step><step id="s2">Inspect.</step></procedure>
 ```
+
+也可以在 patch XML 字符串时输出格式化后的 XML：
+
+```ts
+const prettyXml = patchXml(oldXml, ops, { pretty: true });
+
+console.log(prettyXml);
+```
+
+输出：
+
+```xml
+<procedure>
+  <step id="s1">Remove the access panel.</step>
+  <step id="s2">Inspect.</step>
+</procedure>
+```
+
+`patchXml` 根据路径应用变更。路径中的数字索引是实际用于定位节点的部分。类似 `[@id="s1"]` 的 key 提示用于提升可读性，并帮助 `diffXml` 对齐节点，但 patch 时仍然依赖数字索引。
+
+支持的 patch 操作包括：
+
+- 新增、删除、替换、移动节点
+- 新增、更新、删除属性
+- 替换文本节点内容
 
 ### `formatDiff`
 
@@ -135,7 +169,7 @@ console.log(markdown);
 
 输出：
 
-```md
+````md
 # XML Diff
 
 Total changes: 2
@@ -169,7 +203,7 @@ Remove the access panel.
 ```xml
 <step id="s2">Inspect.</step>
 ```
-```
+````
 
 ### `parseXml` 和 `serializeXml`
 
@@ -258,7 +292,7 @@ console.log(textDiff);
 
 ## Diff 操作类型
 
-当前版本聚焦结构化 XML 变更：
+支持的结构化 XML 变更：
 
 - `addNode`
 - `removeNode`
@@ -286,7 +320,7 @@ interface XmlDiffOptions {
 
 `keyAttrs` 用于让 diff 引擎通过稳定标识对齐兄弟元素，例如 `id`、`xml:id` 或业务自定义 key。
 
-`detectMoves` 是可选能力。启用后，带 key 的兄弟节点重排会被报告为 `moveNode`。默认关闭，这样第一版的 patch 行为更保守、更稳定。
+`detectMoves` 是可选能力。启用后，带 key 的兄弟节点重排会被报告为 `moveNode`。默认关闭，以保持 patch 行为保守。
 
 ## 路径说明
 
