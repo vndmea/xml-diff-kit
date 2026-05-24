@@ -2,6 +2,18 @@ import { DOMParser } from '@xmldom/xmldom';
 
 import type { XmlNode } from './types.js';
 
+/**
+ * Parse an XML string into the library's normalized XML AST.
+ *
+ * This function is intentionally stricter than the default `@xmldom/xmldom`
+ * behavior: parser warnings are treated as invalid XML. This is important for
+ * a diff/patch library because silently recovering malformed XML can produce
+ * surprising paths and operations.
+ *
+ * Only element, text, and comment nodes are currently preserved. Processing
+ * instructions, doctypes, and other DOM node types are ignored during child
+ * traversal until the public AST grows explicit representations for them.
+ */
 export function parseXml(xml: string): XmlNode {
   const doc = new DOMParser({
     errorHandler: {
@@ -24,11 +36,14 @@ export function parseXml(xml: string): XmlNode {
   return fromDomNode(doc.documentElement);
 }
 
+/** Convert a DOM node into the serializable `XmlNode` AST shape. */
 function fromDomNode(node: Node): XmlNode {
   if (node.nodeType === 1) {
     const element = node as Element;
     const attrs: Record<string, string> = {};
 
+    // Preserve attribute names and values exactly as reported by the parser.
+    // Attribute ordering can be made deterministic later by `normalizeXml`.
     for (let index = 0; index < element.attributes.length; index += 1) {
       const attr = element.attributes.item(index);
       if (attr) attrs[attr.name] = attr.value;
@@ -36,6 +51,7 @@ function fromDomNode(node: Node): XmlNode {
 
     const children: XmlNode[] = [];
 
+    // Preserve only node kinds currently represented by the public AST.
     for (let index = 0; index < element.childNodes.length; index += 1) {
       const child = element.childNodes.item(index);
 
