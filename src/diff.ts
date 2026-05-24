@@ -118,7 +118,7 @@ function diffChildren(
         } else {
           const newPath = `${parentPath}/${formatPathSegment(next.node, next.index, keyAttrs)}`;
 
-          if ((options.detectMoves ?? true) && index !== next.index) {
+          if (options.detectMoves === true && index !== next.index) {
             ops.push({
               op: 'moveNode',
               path: childPath,
