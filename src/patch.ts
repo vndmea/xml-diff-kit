@@ -32,6 +32,20 @@ function applyOp(root: XmlNode, op: XmlDiffOp): void {
     return;
   }
 
+  if (op.op === 'addNode') {
+    const parentPath = getParentPath(op.path);
+    const parent = getTarget(root, parentPath).node;
+    assertElement(parent, parentPath);
+    const insertIndex = getLastIndex(op.path);
+    parent.children.splice(insertIndex, 0, cloneXmlNode(op.value));
+    return;
+  }
+
+  if (op.op === 'moveNode') {
+    moveNode(root, op.fromPath, op.toPath);
+    return;
+  }
+
   const target = getTarget(root, op.path);
 
   switch (op.op) {
@@ -66,17 +80,27 @@ function applyOp(root: XmlNode, op: XmlDiffOp): void {
       if (!target.parent) throw new Error('Cannot remove root node.');
       target.parent.children.splice(target.index, 1);
       break;
-
-    case 'addNode':
-      {
-        const parentPath = getParentPath(op.path);
-        const parent = getTarget(root, parentPath).node;
-        assertElement(parent, parentPath);
-        const insertIndex = getLastIndex(op.path);
-        parent.children.splice(insertIndex, 0, cloneXmlNode(op.value));
-      }
-      break;
   }
+}
+
+function moveNode(root: XmlNode, fromPath: string, toPath: string): void {
+  const source = getTarget(root, fromPath);
+
+  if (!source.parent) {
+    throw new Error('Cannot move root node.');
+  }
+
+  const [removed] = source.parent.children.splice(source.index, 1);
+  if (!removed) {
+    throw new Error(`Path not found: ${fromPath}`);
+  }
+
+  const parentPath = getParentPath(toPath);
+  const targetParent = getTarget(root, parentPath).node;
+  assertElement(targetParent, parentPath);
+
+  const targetIndex = getLastIndex(toPath);
+  targetParent.children.splice(targetIndex, 0, removed);
 }
 
 function getTarget(
