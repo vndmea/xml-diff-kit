@@ -71,20 +71,30 @@ Output:
 
 Apply structured diff operations back to an XML string or a parsed XML node.
 
-`patchXml` is useful when you want to turn a diff result into the updated XML document. A common flow is:
+`patchXml` is useful when you already have an `XmlDiffOp[]` and want to apply it to an XML document. When the input is an XML string, `patchXml` returns a string. When the input is an `XmlNode`, it returns a patched `XmlNode`.
 
-```txt
-diffXml(oldXml, newXml) -> XmlDiffOp[]
-patchXml(oldXml, ops) -> patched XML
-```
-
-When the input is an XML string, `patchXml` returns a string. When the input is an `XmlNode`, it returns a patched `XmlNode`.
+#### Add a node
 
 ```ts
-import { diffXml, patchXml } from 'xml-diff-kit';
+import { patchXml, type XmlDiffOp } from 'xml-diff-kit';
 
-const ops = diffXml(oldXml, newXml, { keyAttrs: ['id'] });
-const patchedXml = patchXml(oldXml, ops);
+const xml = '<root><a/></root>';
+
+const ops: XmlDiffOp[] = [
+  {
+    op: 'addNode',
+    path: '/root[0]/b[1]',
+    value: {
+      type: 'element',
+      name: 'b',
+      namespaceURI: null,
+      attrs: {},
+      children: []
+    }
+  }
+];
+
+const patchedXml = patchXml(xml, ops);
 
 console.log(patchedXml);
 ```
@@ -92,33 +102,80 @@ console.log(patchedXml);
 Output:
 
 ```xml
-<procedure><step id="s1">Remove the access panel.</step><step id="s2">Inspect.</step></procedure>
+<root><a/><b/></root>
 ```
 
-You can also request pretty output when patching XML strings:
+#### Update an attribute
 
 ```ts
-const prettyXml = patchXml(oldXml, ops, { pretty: true });
+import { patchXml, type XmlDiffOp } from 'xml-diff-kit';
 
-console.log(prettyXml);
+const xml = '<root status="draft"/>';
+
+const ops: XmlDiffOp[] = [
+  {
+    op: 'updateAttr',
+    path: '/root[0]',
+    name: 'status',
+    oldValue: 'draft',
+    newValue: 'released'
+  }
+];
+
+const patchedXml = patchXml(xml, ops);
+
+console.log(patchedXml);
 ```
 
 Output:
 
 ```xml
-<procedure>
-  <step id="s1">Remove the access panel.</step>
-  <step id="s2">Inspect.</step>
-</procedure>
+<root status="released"/>
+```
+
+#### Replace text
+
+```ts
+import { patchXml, type XmlDiffOp } from 'xml-diff-kit';
+
+const xml = '<root>old text</root>';
+
+const ops: XmlDiffOp[] = [
+  {
+    op: 'replaceText',
+    path: '/root[0]/text()[0]',
+    oldValue: 'old text',
+    newValue: 'new text',
+    changes: [
+      {
+        op: 'replaceTextRange',
+        offset: 0,
+        oldText: 'old',
+        newText: 'new'
+      }
+    ],
+    segments: [
+      { type: 'delete', text: 'old' },
+      { type: 'insert', text: 'new' },
+      { type: 'equal', text: ' text' }
+    ]
+  }
+];
+
+const patchedXml = patchXml(xml, ops);
+
+console.log(patchedXml);
+```
+
+Output:
+
+```xml
+<root>new text</root>
 ```
 
 `patchXml` applies operations by path. The numeric indexes in paths are the executable addressing part used to locate nodes. Key hints such as `[@id="s1"]` make paths easier to read and help `diffXml` align nodes, but patching still relies on the numeric indexes.
 
-Supported patch operations include:
-
-- adding, removing, replacing, and moving nodes
-- adding, updating, and removing attributes
-- replacing text node values
+Supported patch operations include adding, removing, replacing, and moving nodes; adding, updating, and removing attributes; and replacing text node values.
 
 ### `formatDiff`
 
