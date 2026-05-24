@@ -1,15 +1,17 @@
 # xml-diff-kit
 
-语言： [English](https://github.com/vndmea/xml-diff-kit/blob/master/README.md) | [简体中文](https://github.com/vndmea/xml-diff-kit/blob/master/README.zh-CN.md)
+[English](https://github.com/vndmea/xml-diff-kit/blob/master/README.md) | 简体中文
 
 一个 TypeScript XML 差异工具包，用于解析、标准化、比较、补丁应用和格式化 XML 文档变更。
 
 `xml-diff-kit` 面向需要**结构化差异数据**的场景，而不是面向可视化文本对比。它适合结构化编辑器、审阅流程、变更追踪、补丁应用、XML 文档版本比较等场景。
 
+它可以在 Node.js 和现代浏览器中使用。在浏览器端，可以通过 Vite、Webpack、Rollup 或 esbuild 等构建工具直接引入。
+
 ## 安装
 
 ```bash
-pnpm add xml-diff-kit
+npm install xml-diff-kit
 ```
 
 ## 快速使用
@@ -92,6 +94,18 @@ formatDiff(ops, options)
 diffText(oldValue, newValue)
 ```
 
+## 浏览器端使用
+
+`xml-diff-kit` 可以通过标准 ESM import 在现代浏览器项目中使用：
+
+```ts
+import { diffXml } from 'xml-diff-kit';
+
+const ops = diffXml('<root><a>old</a></root>', '<root><a>new</a></root>');
+```
+
+包同时提供 ESM 和 CJS 产物，公共 API 不依赖 Node.js 专属运行时能力。
+
 ## Diff 操作类型
 
 当前版本聚焦结构化 XML 变更：
@@ -139,12 +153,12 @@ interface XmlDiffOptions {
 该包已按 npm 发布准备，支持 ESM/CJS 双格式输出，并生成 TypeScript 声明文件。
 
 ```bash
-pnpm install
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
-pnpm publish --access public
+npm install
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm publish --access public
 ```
 
 仓库也包含 GitHub Actions 发布 workflow。发布前需要在仓库 secrets 中配置 `NPM_TOKEN`。
@@ -152,11 +166,11 @@ pnpm publish --access public
 ## 开发
 
 ```bash
-pnpm install
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm build
+npm install
+npm run lint
+npm run typecheck
+npm test
+npm run build
 ```
 
 ## License
