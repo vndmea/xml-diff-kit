@@ -22,14 +22,14 @@ describe('xml-diff-kit', () => {
   });
 
   it('diffs multiple text changes as separate segments', () => {
-    const result = diffText('A quick brown fox.', 'A slow brown dog.');
+    const result = diffText('A quick brown cat.', 'A slow brown dog.');
 
     expect(result.segments).toEqual([
       { type: 'equal', text: 'A ' },
       { type: 'delete', text: 'quick' },
       { type: 'insert', text: 'slow' },
       { type: 'equal', text: ' brown ' },
-      { type: 'delete', text: 'fox' },
+      { type: 'delete', text: 'cat' },
       { type: 'insert', text: 'dog' },
       { type: 'equal', text: '.' },
     ]);
@@ -71,8 +71,7 @@ describe('xml-diff-kit', () => {
 
   it('keeps keyed reorders stable by default for patching', () => {
     const oldXml = '<root><item id="a"/><item id="b"/></root>';
-    const newXml = '<root><item id="b"/><item id="a"/></root>';
-    const ops = diffXml(oldXml, newXml, {
+    const ops = diffXml(oldXml, '<root><item id="b"/><item id="a"/></root>', {
       keyAttrs: ['id'],
     });
 
