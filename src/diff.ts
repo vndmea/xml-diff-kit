@@ -116,6 +116,18 @@ function diffChildren(
         if (!next) {
           ops.push({ op: 'removeNode', path: childPath, oldValue: node });
         } else {
+          const newPath = `${parentPath}/${formatPathSegment(next.node, next.index, keyAttrs)}`;
+
+          if ((options.detectMoves ?? true) && index !== next.index) {
+            ops.push({
+              op: 'moveNode',
+              path: childPath,
+              fromPath: childPath,
+              toPath: newPath,
+              value: next.node,
+            });
+          }
+
           diffNode(node, next.node, childPath, options, ops);
         }
       }
