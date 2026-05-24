@@ -69,7 +69,16 @@ Output:
 
 ### `patchXml`
 
-Apply diff operations to an XML string or parsed XML node.
+Apply structured diff operations back to an XML string or a parsed XML node.
+
+`patchXml` is useful when you want to turn a diff result into the updated XML document. A common flow is:
+
+```txt
+diffXml(oldXml, newXml) -> XmlDiffOp[]
+patchXml(oldXml, ops) -> patched XML
+```
+
+When the input is an XML string, `patchXml` returns a string. When the input is an `XmlNode`, it returns a patched `XmlNode`.
 
 ```ts
 import { diffXml, patchXml } from 'xml-diff-kit';
@@ -85,6 +94,31 @@ Output:
 ```xml
 <procedure><step id="s1">Remove the access panel.</step><step id="s2">Inspect.</step></procedure>
 ```
+
+You can also request pretty output when patching XML strings:
+
+```ts
+const prettyXml = patchXml(oldXml, ops, { pretty: true });
+
+console.log(prettyXml);
+```
+
+Output:
+
+```xml
+<procedure>
+  <step id="s1">Remove the access panel.</step>
+  <step id="s2">Inspect.</step>
+</procedure>
+```
+
+`patchXml` applies operations by path. The numeric indexes in paths are the executable addressing part used to locate nodes. Key hints such as `[@id="s1"]` make paths easier to read and help `diffXml` align nodes, but patching still relies on the numeric indexes.
+
+Supported patch operations include:
+
+- adding, removing, replacing, and moving nodes
+- adding, updating, and removing attributes
+- replacing text node values
 
 ### `formatDiff`
 
@@ -135,7 +169,7 @@ console.log(markdown);
 
 Output:
 
-```md
+````md
 # XML Diff
 
 Total changes: 2
@@ -169,7 +203,7 @@ Remove the access panel.
 ```xml
 <step id="s2">Inspect.</step>
 ```
-```
+````
 
 ### `parseXml` and `serializeXml`
 
@@ -258,7 +292,7 @@ Output:
 
 ## Diff operations
 
-The current version focuses on structured XML changes:
+Supported structured XML changes:
 
 - `addNode`
 - `removeNode`
@@ -286,7 +320,7 @@ interface XmlDiffOptions {
 
 `keyAttrs` lets the diff engine align sibling elements by stable identifiers, such as `id`, `xml:id`, or domain-specific keys.
 
-`detectMoves` is opt-in. When enabled, keyed sibling reorder changes are reported as `moveNode` operations. It is disabled by default so patching remains conservative for the first version.
+`detectMoves` is opt-in. When enabled, keyed sibling reorder changes are reported as `moveNode` operations. It is disabled by default to keep patching behavior conservative.
 
 ## Paths
 
