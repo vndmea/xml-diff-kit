@@ -1,0 +1,64 @@
+{
+  "name": "xml-diff-kit",
+  "version": "0.1.0",
+  "description": "A TypeScript toolkit for parsing, normalizing, diffing, patching, and formatting XML document changes.",
+  "type": "module",
+  "license": "MIT",
+  "author": "vndmea",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vndmea/xml-diff-kit.git"
+  },
+  "homepage": "https://github.com/vndmea/xml-diff-kit#readme",
+  "bugs": {
+    "url": "https://github.com/vndmea/xml-diff-kit/issues"
+  },
+  "keywords": [
+    "xml",
+    "diff",
+    "patch",
+    "typescript",
+    "structured-diff",
+    "xmldiff"
+  ],
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "clean": "rimraf dist coverage",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "prepublishOnly": "pnpm clean && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "dependencies": {
+    "@xmldom/xmldom": "^0.8.10"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.0.0",
+    "rimraf": "^6.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "packageManager": "pnpm@10.0.0"
+}
