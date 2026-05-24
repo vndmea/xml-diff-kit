@@ -5,7 +5,9 @@ import type { XmlNode } from './types.js';
 export function parseXml(xml: string): XmlNode {
   const doc = new DOMParser({
     errorHandler: {
-      warning: () => undefined,
+      warning: (message) => {
+        throw new Error(`Invalid XML: ${message}`);
+      },
       error: (message) => {
         throw new Error(`Invalid XML: ${message}`);
       },
@@ -45,7 +47,7 @@ function fromDomNode(node: Node): XmlNode {
     return {
       type: 'element',
       name: element.nodeName,
-      namespaceURI: element.namespaceURI,
+      namespaceURI: element.namespaceURI ?? null,
       attrs,
       children,
     };
