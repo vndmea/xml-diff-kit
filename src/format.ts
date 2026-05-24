@@ -3,6 +3,13 @@ import type { DiffSummaryItem, FormatDiffOptions, XmlDiffOp, XmlNode } from './t
 
 export function formatDiff(ops: XmlDiffOp[], options: FormatDiffOptions & { format: 'markdown' }): string;
 export function formatDiff(ops: XmlDiffOp[], options?: FormatDiffOptions): DiffSummaryItem[];
+/**
+ * Format structured diff operations for humans.
+ *
+ * By default, this returns a typed summary array that is easy to consume in UI
+ * code. With `{ format: 'markdown' }`, it returns a markdown report suitable
+ * for logs, pull request comments, review notes, or exported change summaries.
+ */
 export function formatDiff(
   ops: XmlDiffOp[],
   options: FormatDiffOptions = {},
@@ -14,6 +21,7 @@ export function formatDiff(
   return ops.map(toSummaryItem);
 }
 
+/** Build a full markdown report from all operations. */
 function toMarkdown(ops: XmlDiffOp[]): string {
   if (ops.length === 0) {
     return '# XML Diff\n\nNo XML differences.';
@@ -28,6 +36,7 @@ function toMarkdown(ops: XmlDiffOp[]): string {
   ].join('\n');
 }
 
+/** Format one operation as a markdown section. */
 function formatMarkdownOp(op: XmlDiffOp, index: number): string[] {
   switch (op.op) {
     case 'addNode':
@@ -130,6 +139,7 @@ function formatMarkdownOp(op: XmlDiffOp, index: number): string[] {
   }
 }
 
+/** Convert one operation into a typed summary item. */
 function toSummaryItem(op: XmlDiffOp): DiffSummaryItem {
   switch (op.op) {
     case 'addNode':
@@ -202,6 +212,7 @@ function toSummaryItem(op: XmlDiffOp): DiffSummaryItem {
   }
 }
 
+/** Serialize a node for markdown code blocks, using pretty XML for elements. */
 function serializeForMarkdown(node: XmlNode): string {
   if (node.type === 'text' || node.type === 'comment') {
     return serializeXml(node);
@@ -212,14 +223,17 @@ function serializeForMarkdown(node: XmlNode): string {
   });
 }
 
+/** Create a fenced markdown code block and escape nested fences. */
 function codeBlock(language: string, value: string): string {
   return `\`\`\`${language}\n${escapeCodeFence(value)}\n\`\`\``;
 }
 
+/** Prevent embedded triple-backticks from breaking the markdown report. */
 function escapeCodeFence(value: string): string {
   return value.replaceAll('```', '`\u200b``');
 }
 
+/** Escape backticks inside inline-code spans. */
 function escapeInlineCode(value: string): string {
   return value.replaceAll('`', '\\`');
 }
