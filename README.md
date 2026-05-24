@@ -1,5 +1,7 @@
 # xml-diff-kit
 
+Language: [English](https://github.com/vndmea/xml-diff-kit/blob/master/README.md) | [简体中文](https://github.com/vndmea/xml-diff-kit/blob/master/README.zh-CN.md)
+
 A TypeScript toolkit for parsing, normalizing, diffing, patching, and formatting XML document changes.
 
 `xml-diff-kit` is designed for applications that need machine-readable XML differences rather than visual line-based diffs, such as structured editors, review workflows, change tracking, and patch application.
