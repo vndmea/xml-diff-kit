@@ -24,6 +24,7 @@ export interface XmlDiffOptions {
   ignoreComments?: boolean;
   sortAttributes?: boolean;
   keyAttrs?: string[];
+  detectMoves?: boolean;
 }
 
 export interface SerializeOptions {
@@ -81,6 +82,13 @@ export type XmlDiffOp =
       newValue: XmlNode;
     }
   | {
+      op: 'moveNode';
+      path: string;
+      fromPath: string;
+      toPath: string;
+      value: XmlNode;
+    }
+  | {
       op: 'replaceText';
       path: string;
       oldValue: string;
@@ -117,6 +125,7 @@ export interface DiffSummaryItem {
     | 'nodeAdded'
     | 'nodeRemoved'
     | 'nodeReplaced'
+    | 'nodeMoved'
     | 'textChanged'
     | 'attrAdded'
     | 'attrUpdated'
