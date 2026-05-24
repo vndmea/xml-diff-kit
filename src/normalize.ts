@@ -1,6 +1,17 @@
 import type { XmlDiffOptions, XmlNode } from './types.js';
 import { cloneXmlNode, sortRecord } from './utils.js';
 
+/**
+ * Normalize an XML AST before diffing or patching.
+ *
+ * Normalization is where callers define which XML differences are meaningful.
+ * For example, formatted indentation can be ignored with `ignoreWhitespaceText`,
+ * comments can be ignored with `ignoreComments`, and attribute output can be
+ * made deterministic with `sortAttributes`.
+ *
+ * The input node is cloned first. Callers can safely reuse their original AST
+ * after normalization without worrying about mutation.
+ */
 export function normalizeXml(node: XmlNode, options: XmlDiffOptions = {}): XmlNode {
   const cloned = cloneXmlNode(node);
   const normalized = normalizeNode(cloned, options);
@@ -12,6 +23,12 @@ export function normalizeXml(node: XmlNode, options: XmlDiffOptions = {}): XmlNo
   return normalized;
 }
 
+/**
+ * Normalize one node recursively.
+ *
+ * The function returns `null` for nodes that should be removed from the logical
+ * comparison, such as whitespace-only text nodes or ignored comments.
+ */
 function normalizeNode(node: XmlNode, options: XmlDiffOptions): XmlNode | null {
   if (node.type === 'text') {
     const text = options.trimText ? node.text.trim() : node.text;
