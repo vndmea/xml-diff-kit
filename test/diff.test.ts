@@ -21,6 +21,20 @@ describe('xml-diff-kit', () => {
     ]);
   });
 
+  it('diffs multiple text changes as separate segments', () => {
+    const result = diffText('A quick brown fox.', 'A slow brown dog.');
+
+    expect(result.segments).toEqual([
+      { type: 'equal', text: 'A ' },
+      { type: 'delete', text: 'quick' },
+      { type: 'insert', text: 'slow' },
+      { type: 'equal', text: ' brown ' },
+      { type: 'delete', text: 'fox' },
+      { type: 'insert', text: 'dog' },
+      { type: 'equal', text: '.' },
+    ]);
+  });
+
   it('generates structured XML diff operations', () => {
     const ops = diffXml(
       '<procedure><step id="s1">Remove the panel.</step></procedure>',
@@ -44,6 +58,26 @@ describe('xml-diff-kit', () => {
     });
 
     expect(patchXml(oldXml, ops)).toBe(newXml);
+  });
+
+  it('detects keyed node moves when enabled', () => {
+    const ops = diffXml('<root><item id="a"/><item id="b"/></root>', '<root><item id="b"/><item id="a"/></root>', {
+      keyAttrs: ['id'],
+      detectMoves: true,
+    });
+
+    expect(ops.some((op) => op.op === 'moveNode')).toBe(true);
+  });
+
+  it('keeps keyed reorders stable by default for patching', () => {
+    const oldXml = '<root><item id="a"/><item id="b"/></root>';
+    const newXml = '<root><item id="b"/><item id="a"/></root>';
+    const ops = diffXml(oldXml, newXml, {
+      keyAttrs: ['id'],
+    });
+
+    expect(ops.some((op) => op.op === 'moveNode')).toBe(false);
+    expect(patchXml(oldXml, ops)).toBe(oldXml);
   });
 
   it('formats diff output as markdown', () => {
