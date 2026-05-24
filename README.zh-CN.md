@@ -2,11 +2,11 @@
 
 [English](https://github.com/vndmea/xml-diff-kit/blob/master/README.md) | 简体中文
 
-一个 TypeScript XML 差异工具包，用于解析、标准化、比较、补丁应用和格式化 XML 文档变更。
+一个 TypeScript XML 差异工具包，用于解析、标准化、比较、补丁应用、序列化和格式化 XML 文档变更。
 
-`xml-diff-kit` 面向需要**结构化差异数据**的场景，而不是面向可视化文本对比。它适合结构化编辑器、审阅流程、变更追踪、补丁应用、XML 文档版本比较等场景。
+`xml-diff-kit` 面向需要**结构化、机器可读 XML 差异数据**的场景，而不是面向可视化文本对比。它适合结构化编辑器、审阅流程、变更追踪、补丁应用、XML 文档比较，以及浏览器端 XML 工具。
 
-它可以在 Node.js 和现代浏览器中使用。在浏览器端，可以通过 Vite、Webpack、Rollup 或 esbuild 等构建工具直接引入。
+它可以在 Node.js 和现代浏览器中使用。包同时提供 ESM 和 CJS 产物，公共 API 不依赖 Node.js 专属运行时能力。
 
 ## 安装
 
@@ -14,23 +14,17 @@
 npm install xml-diff-kit
 ```
 
-## 快速使用
+## 使用方式
+
+### `diffXml`
+
+比较两个 XML 文档，输出结构化 diff operations。
 
 ```ts
-import { diffXml, patchXml, formatDiff } from 'xml-diff-kit';
+import { diffXml } from 'xml-diff-kit';
 
-const oldXml = `
-<procedure>
-  <step id="s1">Remove the panel.</step>
-</procedure>
-`;
-
-const newXml = `
-<procedure>
-  <step id="s1">Remove the access panel.</step>
-  <step id="s2">Inspect the connector.</step>
-</procedure>
-`;
+const oldXml = '<procedure><step id="s1">Remove the panel.</step></procedure>';
+const newXml = '<procedure><step id="s1">Remove the access panel.</step><step id="s2">Inspect.</step></procedure>';
 
 const ops = diffXml(oldXml, newXml, {
   ignoreWhitespaceText: true,
@@ -38,16 +32,9 @@ const ops = diffXml(oldXml, newXml, {
 });
 
 console.log(ops);
-console.log(formatDiff(ops, { format: 'markdown' }));
-
-const patchedXml = patchXml(oldXml, ops, {
-  pretty: true,
-});
-
-console.log(patchedXml);
 ```
 
-## 示例输出
+示例输出：
 
 ```ts
 [
@@ -56,13 +43,7 @@ console.log(patchedXml);
     path: '/procedure[0]/step[@id="s1"][0]/text()[0]',
     oldValue: 'Remove the panel.',
     newValue: 'Remove the access panel.',
-    changes: [
-      {
-        op: 'insertText',
-        offset: 11,
-        text: 'access '
-      }
-    ],
+    changes: [{ op: 'insertText', offset: 11, text: 'access ' }],
     segments: [
       { type: 'equal', text: 'Remove the ' },
       { type: 'insert', text: 'access ' },
@@ -75,36 +56,76 @@ console.log(patchedXml);
     value: {
       type: 'element',
       name: 'step',
+      namespaceURI: null,
       attrs: { id: 's2' },
-      children: [{ type: 'text', text: 'Inspect the connector.' }]
+      children: [{ type: 'text', text: 'Inspect.' }]
     }
   }
 ]
 ```
 
-## 公共 API
+### `patchXml`
+
+把 diff operations 应用到 XML 字符串或已解析的 XML 节点上。
 
 ```ts
-parseXml(xml)
-normalizeXml(node, options)
-diffXml(oldXmlOrNode, newXmlOrNode, options)
-patchXml(xmlOrNode, ops, options)
-serializeXml(node, options)
-formatDiff(ops, options)
-diffText(oldValue, newValue)
+import { diffXml, patchXml } from 'xml-diff-kit';
+
+const ops = diffXml(oldXml, newXml, { keyAttrs: ['id'] });
+const patchedXml = patchXml(oldXml, ops);
+
+console.log(patchedXml);
 ```
 
-## 浏览器端使用
+### `formatDiff`
 
-`xml-diff-kit` 可以通过标准 ESM import 在现代浏览器项目中使用：
+把结构化 diff operations 格式化为摘要对象，或者 Markdown 报告。
 
 ```ts
-import { diffXml } from 'xml-diff-kit';
+import { diffXml, formatDiff } from 'xml-diff-kit';
 
-const ops = diffXml('<root><a>old</a></root>', '<root><a>new</a></root>');
+const ops = diffXml(oldXml, newXml, { keyAttrs: ['id'] });
+
+const summary = formatDiff(ops);
+const markdown = formatDiff(ops, { format: 'markdown' });
 ```
 
-包同时提供 ESM 和 CJS 产物，公共 API 不依赖 Node.js 专属运行时能力。
+### `parseXml` 和 `serializeXml`
+
+把 XML 解析为内部 AST，再序列化回 XML 字符串。
+
+```ts
+import { parseXml, serializeXml } from 'xml-diff-kit';
+
+const doc = parseXml('<root><item id="1">Hello</item></root>');
+const xml = serializeXml(doc, { pretty: true });
+```
+
+### `normalizeXml`
+
+在 diff 或自定义处理前，标准化 XML AST。
+
+```ts
+import { normalizeXml, parseXml } from 'xml-diff-kit';
+
+const doc = parseXml('<root b="2" a="1">  <item> value </item>  </root>');
+
+const normalized = normalizeXml(doc, {
+  ignoreWhitespaceText: true,
+  trimText: true,
+  sortAttributes: true,
+});
+```
+
+### `diffText`
+
+直接比较两个文本值。`replaceText` 操作内部使用的就是同一套文本 diff。
+
+```ts
+import { diffText } from 'xml-diff-kit';
+
+const textDiff = diffText('Remove the panel.', 'Remove the access panel.');
+```
 
 ## Diff 操作类型
 
@@ -119,7 +140,7 @@ const ops = diffXml('<root><a>old</a></root>', '<root><a>new</a></root>');
 - `updateAttr`
 - `removeAttr`
 
-文本变更会作为 `replaceText` 内部的 range 操作表达，包括 `changes` 和 `segments`。
+文本变更会作为 `replaceText` 内部的 range 操作表达。
 
 ## 选项
 
@@ -140,28 +161,13 @@ interface XmlDiffOptions {
 
 ## 路径说明
 
-差异操作中的 `path`、`fromPath`、`toPath` 表示 XML 树中的节点路径，例如：
+Diff operations 使用从 XML 根节点开始的绝对路径：
 
 ```txt
 /procedure[0]/step[@id="s1"][0]/text()[0]
 ```
 
-这表示根节点 `procedure` 下第 0 个 `step`，并且该 `step` 的 `id` 为 `s1`，然后定位到第 0 个文本节点。
-
-## 发布
-
-该包已按 npm 发布准备，支持 ESM/CJS 双格式输出，并生成 TypeScript 声明文件。
-
-```bash
-npm install
-npm run lint
-npm run typecheck
-npm test
-npm run build
-npm publish --access public
-```
-
-仓库也包含 GitHub Actions 发布 workflow。发布前需要在仓库 secrets 中配置 `NPM_TOKEN`。
+数字索引是 `patchXml` 实际用于定位节点的部分。类似 `[@id="s1"]` 的 key 提示用于提升可读性，并辅助 keyed matching。
 
 ## 开发
 
@@ -170,7 +176,19 @@ npm install
 npm run lint
 npm run typecheck
 npm test
+npm run coverage
 npm run build
+```
+
+## 发布
+
+```bash
+npm install
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm publish --access public
 ```
 
 ## License
