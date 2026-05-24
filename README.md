@@ -58,6 +58,11 @@ Example output:
         offset: 11,
         text: 'access '
       }
+    ],
+    segments: [
+      { type: 'equal', text: 'Remove the ' },
+      { type: 'insert', text: 'access ' },
+      { type: 'equal', text: 'panel.' }
     ]
   },
   {
@@ -82,6 +87,7 @@ diffXml(oldXmlOrNode, newXmlOrNode, options)
 patchXml(xmlOrNode, ops, options)
 serializeXml(node, options)
 formatDiff(ops, options)
+diffText(oldValue, newValue)
 ```
 
 ## Diff operations
@@ -91,6 +97,7 @@ The first version focuses on structured XML changes:
 - `addNode`
 - `removeNode`
 - `replaceNode`
+- `moveNode`
 - `replaceText`
 - `addAttr`
 - `updateAttr`
@@ -98,10 +105,44 @@ The first version focuses on structured XML changes:
 
 Text changes are represented as nested range operations inside `replaceText`.
 
+## Options
+
+```ts
+interface XmlDiffOptions {
+  ignoreWhitespaceText?: boolean;
+  trimText?: boolean;
+  ignoreComments?: boolean;
+  sortAttributes?: boolean;
+  keyAttrs?: string[];
+  detectMoves?: boolean;
+}
+```
+
+`keyAttrs` lets the diff engine align sibling elements by stable identifiers, such as `id`, `xml:id`, or domain-specific keys.
+
+`detectMoves` is opt-in. When enabled, keyed sibling reorder changes are reported as `moveNode` operations. It is disabled by default so patching remains conservative for the first version.
+
+## Release
+
+This package is prepared for npm publishing with dual ESM/CJS output and generated TypeScript declarations.
+
+```bash
+pnpm install
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm publish --access public
+```
+
+The repository also includes a GitHub Actions publish workflow. Configure `NPM_TOKEN` in repository secrets before using it.
+
 ## Development
 
 ```bash
 pnpm install
+pnpm lint
+pnpm typecheck
 pnpm test
 pnpm build
 ```
