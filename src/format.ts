@@ -42,6 +42,15 @@ function toSummaryItem(op: XmlDiffOp): DiffSummaryItem {
         after: op.newValue,
       };
 
+    case 'moveNode':
+      return {
+        type: 'nodeMoved',
+        path: op.path,
+        message: `Moved node from ${op.fromPath} to ${op.toPath}`,
+        before: op.fromPath,
+        after: op.toPath,
+      };
+
     case 'replaceText':
       return {
         type: 'textChanged',
