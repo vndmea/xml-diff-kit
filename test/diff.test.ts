@@ -189,6 +189,14 @@ describe('xml-diff-kit', () => {
     expect(patchXml(oldXml, ops)).toBe(newXml);
   });
 
+  it('patches multiple sibling removals from one diff', () => {
+    const oldXml = '<root><a/><b/><c/></root>';
+    const newXml = '<root><a/></root>';
+    const ops = diffXml(oldXml, newXml);
+
+    expect(patchXml(oldXml, ops)).toBe(newXml);
+  });
+
   it('patches root replacement', () => {
     const oldXml = '<oldRoot><item>old</item></oldRoot>';
     const newXml = '<newRoot><item>new</item></newRoot>';
@@ -246,13 +254,36 @@ describe('xml-diff-kit', () => {
     expect(() => patchXml('<root/>', ops)).toThrow('Path not found');
   });
 
+  it('throws when patching a path with the wrong root segment', () => {
+    const ops: XmlDiffOp[] = [
+      {
+        op: 'removeNode',
+        path: '/wrongRoot[0]/item[0]',
+        oldValue: { type: 'element', name: 'item', namespaceURI: null, attrs: {}, children: [] },
+      },
+    ];
+
+    expect(() => patchXml('<root><item/></root>', ops)).toThrow('Path not found');
+  });
+
   it('detects keyed node moves when enabled', () => {
     const ops = diffXml('<root><item id="a"/><item id="b"/></root>', '<root><item id="b"/><item id="a"/></root>', {
       keyAttrs: ['id'],
       detectMoves: true,
     });
 
-    expect(ops.some((op) => op.op === 'moveNode')).toBe(true);
+    expect(ops.filter((op) => op.op === 'moveNode')).toHaveLength(1);
+  });
+
+  it('patches keyed reorders when move detection is enabled', () => {
+    const oldXml = '<root><item id="a"/><item id="b"/></root>';
+    const newXml = '<root><item id="b"/><item id="a"/></root>';
+    const ops = diffXml(oldXml, newXml, {
+      keyAttrs: ['id'],
+      detectMoves: true,
+    });
+
+    expect(patchXml(oldXml, ops)).toBe(newXml);
   });
 
   it('keeps keyed reorders stable by default for patching', () => {
@@ -263,6 +294,17 @@ describe('xml-diff-kit', () => {
 
     expect(ops.some((op) => op.op === 'moveNode')).toBe(false);
     expect(patchXml(oldXml, ops)).toBe(oldXml);
+  });
+
+  it('falls back to index-based diffing when keyed siblings are duplicated', () => {
+    const oldXml = '<root><item id="a">1</item></root>';
+    const newXml = '<root><item id="a">1</item><item id="a">2</item></root>';
+    const ops = diffXml(oldXml, newXml, {
+      keyAttrs: ['id'],
+    });
+
+    expect(ops.some((op) => op.op === 'addNode')).toBe(true);
+    expect(patchXml(oldXml, ops)).toBe(newXml);
   });
 
   it('formats summary output', () => {

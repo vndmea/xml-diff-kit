@@ -1,6 +1,6 @@
 {
   "name": "xml-diff-kit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A TypeScript toolkit for parsing, normalizing, diffing, patching, and formatting XML document changes.",
   "type": "module",
   "license": "MIT",
@@ -36,6 +36,7 @@
     }
   },
   "scripts": {
+    "changeset": "changeset",
     "clean": "rimraf dist coverage",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
@@ -43,12 +44,15 @@
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
     "lint": "eslint .",
+    "version-packages": "changeset version",
+    "release": "changeset publish",
     "prepublishOnly": "npm run clean && npm run lint && npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@xmldom/xmldom": "^0.8.10"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "@eslint/js": "^9.0.0",
     "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^3.0.0",

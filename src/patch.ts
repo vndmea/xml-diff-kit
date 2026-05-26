@@ -4,6 +4,21 @@ import { serializeXml } from './serialize.js';
 import type { SerializeOptions, XmlDiffOp, XmlNode } from './types.js';
 import { cloneXmlNode } from './utils.js';
 
+type ParsedPathSegment =
+  | {
+      kind: 'element';
+      name: string;
+      index: number;
+      keyAttr?: string;
+      keyValue?: string;
+    }
+  | {
+      kind: 'text' | 'comment';
+      index: number;
+    };
+
+type ParsedElementPathSegment = Extract<ParsedPathSegment, { kind: 'element' }>;
+
 /** Internal target descriptor used while applying path-based operations. */
 type PatchTarget = {
   /** The node selected by the operation path. */
@@ -55,7 +70,8 @@ export function patchXml(
 /** Apply one operation to the mutable cloned root node. */
 function applyOp(root: XmlNode, op: XmlDiffOp): void {
   if (op.op === 'replaceNode' && isRootPath(op.path)) {
-    Object.assign(root, cloneXmlNode(op.newValue));
+    assertRootPath(root, op.path);
+    replaceRootNode(root, op.newValue);
     return;
   }
 
@@ -135,31 +151,27 @@ function moveNode(root: XmlNode, fromPath: string, toPath: string): void {
 
 /** Resolve an absolute XML path to a node and, when applicable, its parent. */
 function getTarget(root: XmlNode, path: string): PatchTarget {
-  const indexes = getPathIndexes(path);
+  const segments = parsePath(path);
 
-  if (indexes.length === 0) {
+  if (segments.length === 0) {
     return {
       node: root,
       index: 0,
     };
   }
 
+  assertRootPath(root, path);
+
   let current = root;
   let parent: Extract<XmlNode, { type: 'element' }> | undefined;
   let currentIndex = 0;
 
-  // The first numeric index belongs to the root path segment. Since `root` is
-  // already selected, traversal starts from the second index.
-  for (const index of indexes.slice(1)) {
+  for (const segment of segments.slice(1)) {
     assertElement(current, path);
+    const { child, index } = resolveChild(current.children, segment, path);
+
     parent = current;
     currentIndex = index;
-
-    const child = current.children[index];
-    if (!child) {
-      throw new Error(`Path not found: ${path}`);
-    }
-
     current = child;
   }
 
@@ -175,16 +187,10 @@ function getTarget(root: XmlNode, path: string): PatchTarget {
   return result;
 }
 
-/** Extract all numeric `[index]` parts from a path. */
-function getPathIndexes(path: string): number[] {
-  const matches = path.match(/\[(\d+)\]/g) ?? [];
-  return matches.map((match) => Number.parseInt(match.slice(1, -1), 10));
-}
-
 /** Return the final numeric path index, usually the insertion or target index. */
 function getLastIndex(path: string): number {
-  const indexes = getPathIndexes(path);
-  const index = indexes.at(-1);
+  const segments = parsePath(path);
+  const index = segments.at(-1)?.index;
 
   if (index === undefined) {
     throw new Error(`Path has no numeric index: ${path}`);
@@ -214,4 +220,150 @@ function assertElement(node: XmlNode, path: string): asserts node is Extract<Xml
   if (node.type !== 'element') {
     throw new Error(`Expected element node at path: ${path}`);
   }
+}
+
+function replaceRootNode(root: XmlNode, next: XmlNode): void {
+  const mutableRoot = root as unknown as Record<string, unknown>;
+  for (const key of Object.keys(mutableRoot)) {
+    delete mutableRoot[key];
+  }
+
+  Object.assign(mutableRoot, cloneXmlNode(next) as unknown as Record<string, unknown>);
+}
+
+function parsePath(path: string): ParsedPathSegment[] {
+  return path
+    .split('/')
+    .filter(Boolean)
+    .map(parsePathSegment);
+}
+
+function parsePathSegment(segment: string): ParsedPathSegment {
+  const indexMatches = [...segment.matchAll(/\[(\d+)\]/g)];
+  const index = indexMatches.at(-1)?.[1];
+
+  if (index === undefined) {
+    throw new Error(`Path has no numeric index: ${segment}`);
+  }
+
+  if (segment.startsWith('text()')) {
+    return {
+      kind: 'text',
+      index: Number.parseInt(index, 10),
+    };
+  }
+
+  if (segment.startsWith('comment()')) {
+    return {
+      kind: 'comment',
+      index: Number.parseInt(index, 10),
+    };
+  }
+
+  const name = segment.replace(/\[.*$/, '');
+  const keyMatch = segment.match(/\[@([^=\]]+)="([^"]*)"\]/);
+
+  const parsed: ParsedElementPathSegment = {
+    kind: 'element',
+    name,
+    index: Number.parseInt(index, 10),
+  };
+
+  if (keyMatch) {
+    const [, keyAttr, keyValue] = keyMatch;
+    if (keyAttr !== undefined) {
+      parsed.keyAttr = keyAttr;
+    }
+    if (keyValue !== undefined) {
+      parsed.keyValue = keyValue;
+    }
+  }
+
+  return parsed;
+}
+
+function assertRootPath(root: XmlNode, path: string): void {
+  const rootSegment = parsePath(path)[0];
+  if (!rootSegment || rootSegment.index !== 0 || !matchesSegment(root, rootSegment)) {
+    throw new Error(`Path not found: ${path}`);
+  }
+}
+
+function resolveChild(
+  children: XmlNode[],
+  segment: ParsedPathSegment,
+  path: string,
+): {
+  child: XmlNode;
+  index: number;
+} {
+  if (segment.kind === 'element' && segment.keyAttr && segment.keyValue !== undefined) {
+    const elementSegment = segment;
+    const keyAttr = elementSegment.keyAttr!;
+    const keyValue = elementSegment.keyValue!;
+    const keyedMatches = children
+      .map((child, index) => ({ child, index }))
+      .filter(
+        ({ child }) =>
+          child.type === 'element' &&
+          child.name === elementSegment.name &&
+          child.attrs[keyAttr] === keyValue,
+      );
+
+    if (keyedMatches.length === 1) {
+      return keyedMatches[0]!;
+    }
+
+    if (keyedMatches.length > 1) {
+      throw new Error(`Ambiguous path: ${path}`);
+    }
+  }
+
+  const indexedChild = children[segment.index];
+  if (indexedChild && matchesSegment(indexedChild, segment)) {
+    return {
+      child: indexedChild,
+      index: segment.index,
+    };
+  }
+
+  const fallbackMatches = children
+    .map((child, index) => ({ child, index }))
+    .filter(({ child }) => matchesSegment(child, segment));
+
+  if (fallbackMatches.length === 1) {
+    return fallbackMatches[0]!;
+  }
+
+  if (fallbackMatches.length > 1) {
+    throw new Error(`Ambiguous path: ${path}`);
+  }
+
+  throw new Error(`Path not found: ${path}`);
+}
+
+function matchesSegment(node: XmlNode, segment: ParsedPathSegment): boolean {
+  if (segment.kind === 'text') {
+    return node.type === 'text';
+  }
+
+  if (segment.kind === 'comment') {
+    return node.type === 'comment';
+  }
+
+  const elementSegment = segment as ParsedElementPathSegment;
+
+  if (node.type !== 'element') {
+    return false;
+  }
+
+  if (node.name !== elementSegment.name) {
+    return false;
+  }
+
+  if (elementSegment.keyAttr && elementSegment.keyValue !== undefined) {
+    return node.attrs[elementSegment.keyAttr] === elementSegment.keyValue;
+  }
+
+  return true;
 }

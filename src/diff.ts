@@ -4,6 +4,18 @@ import { diffText } from './text-diff.js';
 import type { XmlDiffOp, XmlDiffOptions, XmlNode } from './types.js';
 import { formatPathSegment, getNodeKey } from './utils.js';
 
+type IndexedNode = {
+  node: XmlNode;
+  index: number;
+};
+
+type ChildDiffPlan = {
+  compareOps: XmlDiffOp[];
+  removeOps: XmlDiffOp[];
+  moveOps: XmlDiffOp[];
+  addOps: XmlDiffOp[];
+};
+
 /**
  * Compare two XML inputs and return structured, machine-readable operations.
  *
@@ -118,82 +130,71 @@ function diffChildren(
   const keyAttrs = options.keyAttrs ?? [];
 
   if (keyAttrs.length > 0) {
-    const oldKeyed = new Map<string, { node: XmlNode; index: number }>();
-    const newKeyed = new Map<string, { node: XmlNode; index: number }>();
+    const oldEntries = oldChildren.map((node, index) => ({ node, index }));
+    const newEntries = newChildren.map((node, index) => ({ node, index }));
+    const oldKeyed = buildKeyedMap(oldEntries, keyAttrs);
+    const newKeyed = buildKeyedMap(newEntries, keyAttrs);
 
-    oldChildren.forEach((node, index) => {
-      const key = getNodeKey(node, keyAttrs);
-      if (key) oldKeyed.set(key, { node, index });
-    });
+    if (!oldKeyed.hasDuplicates && !newKeyed.hasDuplicates && (oldKeyed.map.size > 0 || newKeyed.map.size > 0)) {
+      const plan = createChildDiffPlan();
 
-    newChildren.forEach((node, index) => {
-      const key = getNodeKey(node, keyAttrs);
-      if (key) newKeyed.set(key, { node, index });
-    });
-
-    if (oldKeyed.size > 0 || newKeyed.size > 0) {
-      for (const [key, { node, index }] of oldKeyed) {
-        const next = newKeyed.get(key);
-        const childPath = `${parentPath}/${formatPathSegment(node, index, keyAttrs)}`;
+      for (const [key, entry] of oldKeyed.map) {
+        const next = newKeyed.map.get(key);
+        const childPath = `${parentPath}/${formatPathSegment(entry.node, entry.index, keyAttrs)}`;
 
         if (!next) {
-          ops.push({ op: 'removeNode', path: childPath, oldValue: node });
-        } else {
-          const newPath = `${parentPath}/${formatPathSegment(next.node, next.index, keyAttrs)}`;
+          plan.removeOps.push({ op: 'removeNode', path: childPath, oldValue: entry.node });
+          continue;
+        }
 
-          // Move detection is opt-in because move application changes sibling order.
-          // Consumers that only need semantic comparison can keep the conservative default.
-          if (options.detectMoves === true && index !== next.index) {
-            ops.push({
-              op: 'moveNode',
-              path: childPath,
-              fromPath: childPath,
-              toPath: newPath,
-              value: next.node,
-            });
-          }
+        diffNode(entry.node, next.node, childPath, options, plan.compareOps);
+      }
 
-          diffNode(node, next.node, childPath, options, ops);
+      for (const [key, entry] of newKeyed.map) {
+        if (!oldKeyed.map.has(key)) {
+          const childPath = `${parentPath}/${formatPathSegment(entry.node, entry.index, keyAttrs)}`;
+          plan.addOps.push({ op: 'addNode', path: childPath, value: entry.node });
         }
       }
 
-      for (const [, { node, index }] of newKeyed) {
-        const key = getNodeKey(node, keyAttrs);
-        if (key && !oldKeyed.has(key)) {
-          const childPath = `${parentPath}/${formatPathSegment(node, index, keyAttrs)}`;
-          ops.push({ op: 'addNode', path: childPath, value: node });
-        }
+      if (options.detectMoves === true) {
+        plan.moveOps.push(...buildMoveOps(oldEntries, newEntries, oldKeyed.map, newKeyed.map, parentPath, keyAttrs));
       }
 
-      const oldUnkeyed = oldChildren
-        .map((node, index) => ({ node, index }))
-        .filter(({ node }) => !getNodeKey(node, keyAttrs));
-      const newUnkeyed = newChildren
-        .map((node, index) => ({ node, index }))
-        .filter(({ node }) => !getNodeKey(node, keyAttrs));
+      appendChildDiffPlan(
+        plan,
+        diffChildrenByIndex(
+          oldEntries.filter(({ node }) => !getNodeKey(node, keyAttrs)),
+          newEntries.filter(({ node }) => !getNodeKey(node, keyAttrs)),
+          parentPath,
+          options,
+        ),
+      );
 
-      diffChildrenByIndex(oldUnkeyed, newUnkeyed, parentPath, options, ops);
+      flushChildDiffPlan(plan, ops);
       return;
     }
   }
 
-  diffChildrenByIndex(
-    oldChildren.map((node, index) => ({ node, index })),
-    newChildren.map((node, index) => ({ node, index })),
-    parentPath,
-    options,
+  flushChildDiffPlan(
+    diffChildrenByIndex(
+      oldChildren.map((node, index) => ({ node, index })),
+      newChildren.map((node, index) => ({ node, index })),
+      parentPath,
+      options,
+    ),
     ops,
   );
 }
 
 /** Compare child arrays by their current sibling indexes. */
 function diffChildrenByIndex(
-  oldChildren: Array<{ node: XmlNode; index: number }>,
-  newChildren: Array<{ node: XmlNode; index: number }>,
+  oldChildren: IndexedNode[],
+  newChildren: IndexedNode[],
   parentPath: string,
   options: XmlDiffOptions,
-  ops: XmlDiffOp[],
-): void {
+): ChildDiffPlan {
+  const plan = createChildDiffPlan();
   const max = Math.max(oldChildren.length, newChildren.length);
 
   for (let index = 0; index < max; index += 1) {
@@ -202,19 +203,158 @@ function diffChildrenByIndex(
 
     if (!oldItem && newItem) {
       const childPath = `${parentPath}/${formatPathSegment(newItem.node, newItem.index, options.keyAttrs)}`;
-      ops.push({ op: 'addNode', path: childPath, value: newItem.node });
+      plan.addOps.push({ op: 'addNode', path: childPath, value: newItem.node });
       continue;
     }
 
     if (oldItem && !newItem) {
       const childPath = `${parentPath}/${formatPathSegment(oldItem.node, oldItem.index, options.keyAttrs)}`;
-      ops.push({ op: 'removeNode', path: childPath, oldValue: oldItem.node });
+      plan.removeOps.push({ op: 'removeNode', path: childPath, oldValue: oldItem.node });
       continue;
     }
 
     if (oldItem && newItem) {
       const childPath = `${parentPath}/${formatPathSegment(oldItem.node, oldItem.index, options.keyAttrs)}`;
-      diffNode(oldItem.node, newItem.node, childPath, options, ops);
+      diffNode(oldItem.node, newItem.node, childPath, options, plan.compareOps);
     }
   }
+
+  return plan;
+}
+
+function createChildDiffPlan(): ChildDiffPlan {
+  return {
+    compareOps: [],
+    removeOps: [],
+    moveOps: [],
+    addOps: [],
+  };
+}
+
+function appendChildDiffPlan(target: ChildDiffPlan, next: ChildDiffPlan): void {
+  target.compareOps.push(...next.compareOps);
+  target.removeOps.push(...next.removeOps);
+  target.moveOps.push(...next.moveOps);
+  target.addOps.push(...next.addOps);
+}
+
+function flushChildDiffPlan(plan: ChildDiffPlan, ops: XmlDiffOp[]): void {
+  ops.push(...plan.compareOps);
+  ops.push(...sortRemoveOps(plan.removeOps));
+  ops.push(...plan.moveOps);
+  ops.push(...sortAddOps(plan.addOps));
+}
+
+function sortRemoveOps(ops: XmlDiffOp[]): XmlDiffOp[] {
+  return [...ops].sort((left, right) => getPathSortIndex(right.path) - getPathSortIndex(left.path));
+}
+
+function sortAddOps(ops: XmlDiffOp[]): XmlDiffOp[] {
+  return [...ops].sort((left, right) => getPathSortIndex(left.path) - getPathSortIndex(right.path));
+}
+
+function getPathSortIndex(path: string): number {
+  const matches = path.match(/\[(\d+)\]/g) ?? [];
+  const lastMatch = matches.at(-1);
+
+  return lastMatch ? Number.parseInt(lastMatch.slice(1, -1), 10) : -1;
+}
+
+function buildKeyedMap(entries: IndexedNode[], keyAttrs: string[]): {
+  map: Map<string, IndexedNode>;
+  hasDuplicates: boolean;
+} {
+  const map = new Map<string, IndexedNode>();
+  let hasDuplicates = false;
+
+  for (const entry of entries) {
+    const key = getNodeKey(entry.node, keyAttrs);
+    if (!key) continue;
+
+    if (map.has(key)) {
+      hasDuplicates = true;
+      continue;
+    }
+
+    map.set(key, entry);
+  }
+
+  return {
+    map,
+    hasDuplicates,
+  };
+}
+
+function buildMoveOps(
+  oldEntries: IndexedNode[],
+  newEntries: IndexedNode[],
+  oldKeyed: Map<string, IndexedNode>,
+  newKeyed: Map<string, IndexedNode>,
+  parentPath: string,
+  keyAttrs: string[],
+): XmlDiffOp[] {
+  const sharedKeys = new Set([...oldKeyed.keys()].filter((key) => newKeyed.has(key)));
+  if (sharedKeys.size === 0) return [];
+
+  let oldUnkeyedOrdinal = 0;
+  let newUnkeyedOrdinal = 0;
+  const current = oldEntries.filter(({ node }) => {
+    const key = getNodeKey(node, keyAttrs);
+    if (key) {
+      return sharedKeys.has(key);
+    }
+
+    const keep = oldUnkeyedOrdinal < countUnkeyedRetained(oldEntries, newEntries, keyAttrs);
+    oldUnkeyedOrdinal += 1;
+    return keep;
+  });
+  const target = newEntries.filter(({ node }) => {
+    const key = getNodeKey(node, keyAttrs);
+    if (key) {
+      return sharedKeys.has(key);
+    }
+
+    const keep = newUnkeyedOrdinal < countUnkeyedRetained(newEntries, oldEntries, keyAttrs);
+    newUnkeyedOrdinal += 1;
+    return keep;
+  });
+  const ops: XmlDiffOp[] = [];
+
+  for (let targetIndex = 0; targetIndex < target.length; targetIndex += 1) {
+    const targetEntry = target[targetIndex]!;
+    const targetKey = getNodeKey(targetEntry.node, keyAttrs);
+    if (!targetKey) continue;
+
+    const currentKey = getNodeKey(current[targetIndex]?.node ?? targetEntry.node, keyAttrs);
+    if (currentKey === targetKey) continue;
+
+    const sourceIndex = current.findIndex((entry) => getNodeKey(entry.node, keyAttrs) === targetKey);
+    if (sourceIndex === -1) continue;
+
+    const sourceEntry = oldKeyed.get(targetKey);
+    if (!sourceEntry) continue;
+
+    const fromPath = `${parentPath}/${formatPathSegment(sourceEntry.node, sourceEntry.index, keyAttrs)}`;
+    ops.push({
+      op: 'moveNode',
+      path: fromPath,
+      fromPath,
+      toPath: `${parentPath}/${formatPathSegment(targetEntry.node, targetIndex, keyAttrs)}`,
+      value: targetEntry.node,
+    });
+
+    const [moved] = current.splice(sourceIndex, 1);
+    if (moved) {
+      current.splice(targetIndex, 0, moved);
+    }
+  }
+
+  return ops;
+}
+
+function countUnkeyedRetained(sourceEntries: IndexedNode[], otherEntries: IndexedNode[], keyAttrs: string[]): number {
+  const sourceUnkeyedCount = sourceEntries.filter(({ node }) => !getNodeKey(node, keyAttrs)).length;
+  const otherUnkeyedCount = otherEntries.filter(({ node }) => !getNodeKey(node, keyAttrs)).length;
+
+  return Math.min(sourceUnkeyedCount, otherUnkeyedCount);
 }
